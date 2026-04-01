@@ -58,6 +58,13 @@
             color: inherit;
         }
 
+        .brand-logo {
+            display: block;
+            width: auto;
+            height: 56px;
+            object-fit: contain;
+        }
+
         .brand-text {
             display: flex;
             flex-direction: column;
@@ -73,7 +80,7 @@
         }
 
         .brand-name {
-            font-size: 1.15rem;
+            font-size: 1.24rem;
             font-weight: 700;
             color: var(--crimson);
             letter-spacing: 0.02em;
@@ -285,37 +292,26 @@
             .grid.two, .hero-metric { grid-template-columns: 1fr; }
             .topbar-inner { flex-direction: column; align-items: flex-start; }
         }
+
+        @media (max-width: 640px) {
+            .brand {
+                align-items: flex-start;
+            }
+
+            .brand-logo {
+                height: 48px;
+            }
+        }
     </style>
 </head>
 <body>
     <header class="topbar">
         <div class="topbar-inner">
             <a class="brand" href="{{ url_for('index') }}">
-                <!-- Logo Dirección de Publicaciones UCSG (SVG) -->
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56" width="52" height="52" aria-label="Logo Dirección de Publicaciones UCSG" role="img">
-                    <!-- Fondo cuadrado -->
-                    <rect width="56" height="56" rx="3" fill="#A90046"/>
-                    <!-- Páginas del libro en abanico (lomo en esquina superior derecha) -->
-                    <line x1="50" y1="20" x2="6"  y2="4"  stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-                    <line x1="50" y1="20" x2="11" y2="2"  stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-                    <line x1="50" y1="20" x2="18" y2="2"  stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-                    <line x1="50" y1="20" x2="27" y2="2"  stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-                    <line x1="50" y1="20" x2="37" y2="3"  stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-                    <!-- Cuerpo del libro -->
-                    <rect x="4" y="20" width="48" height="32" rx="2" fill="#A90046"/>
-                    <!-- Cruz UCSG: 4 cuadrados blancos en diagonal + barras de cruz -->
-                    <rect x="8"  y="24" width="13" height="13" rx="1.5" fill="white"/>
-                    <rect x="35" y="24" width="13" height="13" rx="1.5" fill="white"/>
-                    <rect x="8"  y="41" width="13" height="11" rx="1.5" fill="white"/>
-                    <rect x="35" y="41" width="13" height="11" rx="1.5" fill="white"/>
-                    <!-- Barra vertical central -->
-                    <rect x="24" y="24" width="8" height="28" rx="1.5" fill="white"/>
-                    <!-- Barra horizontal central -->
-                    <rect x="8"  y="30" width="40" height="7"  rx="1.5" fill="white"/>
-                </svg>
+                <img class="brand-logo" src="{{ url_for('static', filename='img/logo-direccion.png') }}" alt="Dirección de Publicaciones UCSG">
                 <div class="brand-text">
-                    <span class="brand-label">Dirección de Publicaciones</span>
                     <span class="brand-name">DRM Social</span>
+                    <span class="brand-label">Dirección de Publicaciones</span>
                     <span class="brand-sub">Universidad Católica de Santiago de Guayaquil</span>
                 </div>
             </a>
