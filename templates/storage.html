@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="grid">
+    <div class="card">
+        <h2>Gestión de almacenamiento</h2>
+        <p>Administra archivos subidos y protegidos para evitar crecimiento indefinido del almacenamiento.</p>
+
+        <div class="hero-metric">
+            <div>
+                <strong>{{ upload_stats.total_count }}</strong>
+                Uploads
+                <br>
+                <small>{{ upload_stats.total_size }}</small>
+            </div>
+            <div>
+                <strong>{{ protected_stats.total_count }}</strong>
+                Protegidos
+                <br>
+                <small>{{ protected_stats.total_size }}</small>
+            </div>
+            <div>
+                <strong>{{ protected_stats.orphan_count }}</strong>
+                Huérfanos (protegidos)
+                <br>
+                <small>sin referencia en historial</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Acciones rápidas</h3>
+        <div class="action-stack" style="flex-direction: row; flex-wrap: wrap; gap: 12px;">
+            <form method="post" action="{{ url_for('storage_cleanup') }}" onsubmit="return confirm('Se eliminarán TODOS los archivos en uploads. ¿Continuar?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="action" value="uploads">
+                <button class="button button-danger" type="submit">Vaciar uploads</button>
+            </form>
+            <form method="post" action="{{ url_for('storage_cleanup') }}" onsubmit="return confirm('Se eliminarán solo protegidos sin referencia en historial. ¿Continuar?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="action" value="orphan_protected">
+                <button class="button" type="submit">Limpiar protegidos huérfanos</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Archivos subidos (uploads)</h3>
+        <p>Aquí se almacenan los PDF originales cargados por el operador.</p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Archivo</th>
+                        <th>Modificado</th>
+                        <th>Tamaño</th>
+                        <th>Estado</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in upload_files %}
+                    <tr>
+                        <td>
+                            <strong>{{ item.name }}</strong><br>
+                            <span class="pill">{{ item.relative_path }}</span>
+                        </td>
+                        <td>{{ item.modified_at }}</td>
+                        <td>{{ item.size }}</td>
+                        <td>
+                            {% if item.linked %}
+                            <span class="pill">Registrado</span>
+                            {% else %}
+                            <span class="pill">Huérfano</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="post" action="{{ url_for('storage_delete_file') }}" onsubmit="return confirm('¿Eliminar este archivo?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="scope" value="upload">
+                                <input type="hidden" name="file_path" value="{{ item.relative_path }}">
+                                <button class="button button-danger" type="submit">Eliminar</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5">No hay archivos en uploads.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Archivos protegidos (protected)</h3>
+        <p>Los archivos con estado <strong>Registrado</strong> deben eliminarse desde Historial para mantener consistencia.</p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Archivo</th>
+                        <th>Modificado</th>
+                        <th>Tamaño</th>
+                        <th>Estado</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in protected_files %}
+                    <tr>
+                        <td>
+                            <strong>{{ item.name }}</strong><br>
+                            <span class="pill">{{ item.relative_path }}</span>
+                        </td>
+                        <td>{{ item.modified_at }}</td>
+                        <td>{{ item.size }}</td>
+                        <td>
+                            {% if item.linked %}
+                            <span class="pill">Registrado</span>
+                            {% else %}
+                            <span class="pill">Huérfano</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.linked %}
+                            <span class="pill">Eliminar en Historial</span>
+                            {% else %}
+                            <form method="post" action="{{ url_for('storage_delete_file') }}" onsubmit="return confirm('¿Eliminar este archivo huérfano?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="scope" value="protected">
+                                <input type="hidden" name="file_path" value="{{ item.relative_path }}">
+                                <button class="button button-danger" type="submit">Eliminar</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5">No hay archivos en protected.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}

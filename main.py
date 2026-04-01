@@ -163,6 +163,77 @@ def has_pdf_signature(uploaded_file) -> bool:
     return header == b"%PDF-"
 
 
+def format_bytes(size_in_bytes: int) -> str:
+    units = ["B", "KB", "MB", "GB"]
+    value = float(size_in_bytes)
+    for unit in units:
+        if value < 1024 or unit == units[-1]:
+            return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} {unit}"
+        value /= 1024
+    return f"{int(size_in_bytes)} B"
+
+
+def list_files_in_directory(directory: Path):
+    files = []
+    if not directory.exists():
+        return files
+
+    for file_path in directory.rglob("*"):
+        if not file_path.is_file():
+            continue
+        files.append(file_path)
+
+    files.sort(key=lambda item: item.stat().st_mtime, reverse=True)
+    return files
+
+
+def build_storage_listing(directory: Path, referenced_paths: set[str]):
+    files = []
+    total_size = 0
+    linked_count = 0
+
+    for file_path in list_files_in_directory(directory):
+        relative_path = str(file_path.relative_to(BASE_DIR))
+        file_size = file_path.stat().st_size
+        linked = relative_path in referenced_paths
+
+        files.append(
+            {
+                "name": file_path.name,
+                "relative_path": relative_path,
+                "size": format_bytes(file_size),
+                "modified_at": datetime.fromtimestamp(file_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+                "linked": linked,
+            }
+        )
+        total_size += file_size
+        if linked:
+            linked_count += 1
+
+    stats = {
+        "total_count": len(files),
+        "linked_count": linked_count,
+        "orphan_count": len(files) - linked_count,
+        "total_size": format_bytes(total_size),
+    }
+    return files, stats
+
+
+def resolve_storage_path(relative_path: str, scope: str) -> Path | None:
+    if scope not in {"upload", "protected"}:
+        return None
+
+    base_directory = UPLOAD_DIR if scope == "upload" else PROTECTED_DIR
+    absolute_path = (BASE_DIR / relative_path).resolve()
+
+    try:
+        absolute_path.relative_to(base_directory.resolve())
+    except ValueError:
+        return None
+
+    return absolute_path
+
+
 def build_watermark_page(page_width: float, page_height: float, recipient_name: str, recipient_email: str, recipient_hash: str, license_id: str, issued_at: str):
     buffer = BytesIO()
     pdf_canvas = canvas.Canvas(buffer, pagesize=(page_width, page_height))
@@ -458,6 +529,105 @@ def history():
     return render_template("history.html", books=books)
 
 
+@app.route("/storage")
+@login_required
+def storage_manager():
+    with get_db_connection() as connection:
+        rows = connection.execute(
+            "SELECT stored_upload_path, protected_path FROM protected_books"
+        ).fetchall()
+
+    upload_references = {row["stored_upload_path"] for row in rows if row["stored_upload_path"]}
+    protected_references = {row["protected_path"] for row in rows if row["protected_path"]}
+
+    upload_files, upload_stats = build_storage_listing(UPLOAD_DIR, upload_references)
+    protected_files, protected_stats = build_storage_listing(PROTECTED_DIR, protected_references)
+
+    return render_template(
+        "storage.html",
+        upload_files=upload_files,
+        protected_files=protected_files,
+        upload_stats=upload_stats,
+        protected_stats=protected_stats,
+    )
+
+
+@app.route("/storage/delete-file", methods=["POST"])
+@login_required
+@limiter.limit("60/minute")
+def storage_delete_file():
+    scope = request.form.get("scope", "").strip()
+    relative_path = request.form.get("file_path", "").strip()
+
+    file_path = resolve_storage_path(relative_path, scope)
+    if not file_path:
+        flash("Ruta de archivo inválida.", "error")
+        return redirect(url_for("storage_manager"))
+
+    if scope == "protected":
+        with get_db_connection() as connection:
+            linked_record = connection.execute(
+                "SELECT id FROM protected_books WHERE protected_path = ? LIMIT 1",
+                (relative_path,),
+            ).fetchone()
+        if linked_record:
+            flash("Este archivo está ligado a una licencia activa. Elimínalo desde Historial.", "error")
+            return redirect(url_for("storage_manager"))
+
+    if not file_path.exists() or not file_path.is_file():
+        flash("El archivo ya no existe.", "error")
+        return redirect(url_for("storage_manager"))
+
+    file_path.unlink()
+    flash("Archivo eliminado correctamente.", "success")
+    return redirect(url_for("storage_manager"))
+
+
+@app.route("/storage/cleanup", methods=["POST"])
+@login_required
+@limiter.limit("10/minute")
+def storage_cleanup():
+    action = request.form.get("action", "").strip()
+
+    if action == "uploads":
+        removed_files = 0
+        removed_bytes = 0
+        for file_path in list_files_in_directory(UPLOAD_DIR):
+            removed_bytes += file_path.stat().st_size
+            file_path.unlink()
+            removed_files += 1
+
+        flash(
+            f"Limpieza completada en uploads: {removed_files} archivos ({format_bytes(removed_bytes)}).",
+            "success",
+        )
+        return redirect(url_for("storage_manager"))
+
+    if action == "orphan_protected":
+        with get_db_connection() as connection:
+            rows = connection.execute("SELECT protected_path FROM protected_books").fetchall()
+        protected_references = {row["protected_path"] for row in rows if row["protected_path"]}
+
+        removed_files = 0
+        removed_bytes = 0
+        for file_path in list_files_in_directory(PROTECTED_DIR):
+            relative_path = str(file_path.relative_to(BASE_DIR))
+            if relative_path in protected_references:
+                continue
+            removed_bytes += file_path.stat().st_size
+            file_path.unlink()
+            removed_files += 1
+
+        flash(
+            f"Limpieza de protegidos huérfanos completada: {removed_files} archivos ({format_bytes(removed_bytes)}).",
+            "success",
+        )
+        return redirect(url_for("storage_manager"))
+
+    flash("Acción de limpieza no válida.", "error")
+    return redirect(url_for("storage_manager"))
+
+
 @app.route("/download/<int:book_id>")
 @login_required
 def download_book(book_id: int):
@@ -480,7 +650,7 @@ def download_book(book_id: int):
 def delete_book(book_id: int):
     with get_db_connection() as connection:
         book = connection.execute(
-            "SELECT protected_path FROM protected_books WHERE id = ?",
+            "SELECT protected_path, stored_upload_path FROM protected_books WHERE id = ?",
             (book_id,),
         ).fetchone()
 
@@ -493,6 +663,10 @@ def delete_book(book_id: int):
     protected_file = BASE_DIR / book["protected_path"]
     if protected_file.exists() and protected_file.is_file():
         protected_file.unlink()
+
+    upload_file = BASE_DIR / book["stored_upload_path"]
+    if upload_file.exists() and upload_file.is_file():
+        upload_file.unlink()
 
     flash("Registro eliminado correctamente.", "success")
     return redirect(url_for("history"))

@@ -422,6 +422,7 @@
                 <span class="nav-user">{{ session.get("user_name") }}</span>
                 <a href="{{ url_for('dashboard') }}">Panel</a>
                 <a href="{{ url_for('history') }}">Historial</a>
+                <a href="{{ url_for('storage_manager') }}">Archivos</a>
                 <a href="{{ url_for('logout') }}">Salir</a>
             </nav>
             {% endif %}
