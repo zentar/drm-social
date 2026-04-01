@@ -13,3 +13,9 @@ services:
     volumes:
       - ./data:/app/data
     restart: unless-stopped
+    networks:
+      - red_editorial
+
+networks:
+  red_editorial:
+    external: true

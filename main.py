@@ -11,8 +11,10 @@ from pathlib import Path
 from flask import Flask, flash, redirect, render_template, request, send_file, session, url_for
 from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
+from werkzeug.wrappers import Response
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -390,6 +392,7 @@ ensure_storage()
 init_db()
 bootstrap_admin_from_env()
 
+application = DispatcherMiddleware(Response("Not Found", status=404), {"/drmsocial": app})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8000")), debug=False)
