@@ -5,7 +5,8 @@
     <div class="card">
         <h2>Nueva protección</h2>
         <p>Sube el PDF, asigna el comprador y define si el archivo tendrá contraseña de apertura o una clave de propietario específica.</p>
-        <form method="post" action="{{ url_for('protect_book') }}" enctype="multipart/form-data">
+        <form method="post" action="{{ url_for('protect_book') }}" enctype="multipart/form-data" data-protect-form>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <label>
                 Libro en PDF
                 <input type="file" name="book" accept="application/pdf" required>
@@ -26,7 +27,10 @@
                 Contraseña de propietario
                 <input type="text" name="owner_password" placeholder="Si queda vacía, la app generará una automáticamente">
             </label>
-            <button class="button" type="submit">Proteger libro</button>
+            <button class="button" type="submit" data-submit-button>
+                <span class="button-label-default">Proteger libro</span>
+                <span class="button-label-loading">Protegiendo archivo...</span>
+            </button>
         </form>
     </div>
 
@@ -81,4 +85,49 @@
         </div>
     </div>
 </section>
+
+<div class="processing-overlay" id="processingOverlay" aria-hidden="true">
+    <div class="processing-card" role="status" aria-live="polite">
+        <div class="processing-spinner" aria-hidden="true"></div>
+        <h3>Protegiendo el documento</h3>
+        <p>Estamos aplicando la marca, cifrando el PDF y registrando la licencia. No cierres esta ventana.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    (() => {
+        const form = document.querySelector('[data-protect-form]');
+        const overlay = document.getElementById('processingOverlay');
+
+        if (!form || !overlay) {
+            return;
+        }
+
+        const submitButton = form.querySelector('[data-submit-button]');
+        let isSubmitting = false;
+
+        form.addEventListener('submit', (event) => {
+            if (isSubmitting) {
+                event.preventDefault();
+                return;
+            }
+
+            if (!form.checkValidity()) {
+                return;
+            }
+
+            isSubmitting = true;
+            overlay.classList.add('is-visible');
+            overlay.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('is-busy');
+
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.classList.add('is-loading');
+            }
+        });
+    })();
+</script>
 {% endblock %}

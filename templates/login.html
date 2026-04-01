@@ -6,6 +6,7 @@
         <h2>Iniciar sesión</h2>
         <p>Accede al repositorio privado de libros protegidos y genera nuevas licencias desde un solo panel.</p>
         <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <label>
                 Correo electrónico
                 <input type="email" name="email" placeholder="admin@ejemplo.com" required>

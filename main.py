@@ -4,14 +4,18 @@ import secrets
 import sqlite3
 import uuid
 from datetime import datetime
+from datetime import timedelta
 from functools import wraps
 from io import BytesIO
 from pathlib import Path
 
 from flask import Flask, flash, redirect, render_template, request, send_file, session, url_for
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 from werkzeug.wrappers import Response
@@ -28,6 +32,18 @@ ALLOWED_EXTENSIONS = {"pdf"}
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", secrets.token_hex(32))
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
+app.config["SESSION_COOKIE_SECURE"] = os.getenv("SESSION_COOKIE_SECURE", "true").lower() == "true"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = os.getenv("SESSION_COOKIE_SAMESITE", "Lax")
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=int(os.getenv("SESSION_LIFETIME_MINUTES", "120")))
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    default_limits=[],
+    storage_uri=os.getenv("RATELIMIT_STORAGE_URI", "memory://"),
+)
 
 
 def ensure_storage() -> None:
@@ -108,8 +124,43 @@ def login_required(view_func):
     return wrapped_view
 
 
+def get_or_create_csrf_token() -> str:
+    token = session.get("csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["csrf_token"] = token
+    return token
+
+
+@app.context_processor
+def inject_csrf_token():
+    return {"csrf_token": get_or_create_csrf_token()}
+
+
+@app.before_request
+def protect_post_requests_with_csrf():
+    if request.method != "POST":
+        return None
+
+    session_token = session.get("csrf_token")
+    form_token = request.form.get("csrf_token", "")
+
+    if not session_token or not form_token or not secrets.compare_digest(session_token, form_token):
+        flash("La sesión de seguridad expiró. Vuelve a intentarlo.", "error")
+        return redirect(request.referrer or url_for("login"))
+
+    return None
+
+
 def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def has_pdf_signature(uploaded_file) -> bool:
+    current_position = uploaded_file.stream.tell()
+    header = uploaded_file.stream.read(5)
+    uploaded_file.stream.seek(current_position)
+    return header == b"%PDF-"
 
 
 def build_watermark_page(page_width: float, page_height: float, recipient_name: str, recipient_email: str, recipient_hash: str, license_id: str, issued_at: str):
@@ -200,6 +251,7 @@ def index():
 
 
 @app.route("/setup", methods=["GET", "POST"])
+@limiter.limit("5/minute")
 def setup():
     if has_users():
         return redirect(url_for("login"))
@@ -231,6 +283,7 @@ def setup():
 
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("10/minute")
 def login():
     if not has_users():
         return redirect(url_for("setup"))
@@ -246,6 +299,8 @@ def login():
             flash("Credenciales inválidas.", "error")
         else:
             session.clear()
+            session.permanent = True
+            session["csrf_token"] = secrets.token_urlsafe(32)
             session["user_id"] = user["id"]
             session["user_name"] = user["name"]
             session["user_email"] = user["email"]
@@ -279,6 +334,7 @@ def dashboard():
 
 @app.route("/protect", methods=["POST"])
 @login_required
+@limiter.limit("20/minute")
 def protect_book():
     uploaded_file = request.files.get("book")
     recipient_name = request.form.get("recipient_name", "").strip()
@@ -294,6 +350,10 @@ def protect_book():
         flash("Solo se permiten archivos PDF.", "error")
         return redirect(url_for("dashboard"))
 
+    if not has_pdf_signature(uploaded_file):
+        flash("El archivo no tiene una firma PDF válida.", "error")
+        return redirect(url_for("dashboard"))
+
     if not recipient_name or not recipient_email:
         flash("Debes indicar el nombre y el email del destinatario.", "error")
         return redirect(url_for("dashboard"))
@@ -306,48 +366,74 @@ def protect_book():
     protected_path = PROTECTED_DIR / protected_filename
 
     uploaded_file.save(upload_path)
-    protection_data = create_protected_pdf(
-        upload_path,
-        protected_path,
-        recipient_name,
-        recipient_email,
-        open_password,
-        owner_password,
-    )
 
-    with get_db_connection() as connection:
-        connection.execute(
-            """
-            INSERT INTO protected_books (
-                original_filename,
-                stored_upload_path,
-                protected_filename,
-                protected_path,
-                recipient_name,
-                recipient_email,
-                recipient_hash,
-                license_id,
-                open_password_hint,
-                owner_password_hint,
-                created_at,
-                created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                uploaded_file.filename,
-                str(upload_path.relative_to(BASE_DIR)),
-                protected_filename,
-                str(protected_path.relative_to(BASE_DIR)),
-                recipient_name,
-                recipient_email,
-                protection_data["recipient_hash"],
-                protection_data["license_id"],
-                protection_data["open_password_hint"],
-                protection_data["owner_password_hint"],
-                protection_data["issued_at"],
-                session["user_id"],
-            ),
+    try:
+        # Valida que el archivo se pueda abrir realmente como PDF.
+        PdfReader(str(upload_path))
+    except Exception:
+        if upload_path.exists():
+            upload_path.unlink()
+        flash("El PDF está dañado o no se puede procesar.", "error")
+        return redirect(url_for("dashboard"))
+
+    try:
+        protection_data = create_protected_pdf(
+            upload_path,
+            protected_path,
+            recipient_name,
+            recipient_email,
+            open_password,
+            owner_password,
         )
+    except Exception:
+        if protected_path.exists():
+            protected_path.unlink()
+        if upload_path.exists():
+            upload_path.unlink()
+        flash("No se pudo proteger el archivo PDF. Intenta nuevamente.", "error")
+        return redirect(url_for("dashboard"))
+
+    try:
+        with get_db_connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO protected_books (
+                    original_filename,
+                    stored_upload_path,
+                    protected_filename,
+                    protected_path,
+                    recipient_name,
+                    recipient_email,
+                    recipient_hash,
+                    license_id,
+                    open_password_hint,
+                    owner_password_hint,
+                    created_at,
+                    created_by
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    uploaded_file.filename,
+                    str(upload_path.relative_to(BASE_DIR)),
+                    protected_filename,
+                    str(protected_path.relative_to(BASE_DIR)),
+                    recipient_name,
+                    recipient_email,
+                    protection_data["recipient_hash"],
+                    protection_data["license_id"],
+                    protection_data["open_password_hint"],
+                    protection_data["owner_password_hint"],
+                    protection_data["issued_at"],
+                    session["user_id"],
+                ),
+            )
+    except Exception:
+        if protected_path.exists():
+            protected_path.unlink()
+        if upload_path.exists():
+            upload_path.unlink()
+        flash("No se pudo registrar la licencia en la base de datos.", "error")
+        return redirect(url_for("dashboard"))
 
     flash(
         f"PDF protegido correctamente. ID de licencia: {protection_data['license_id']} | Contraseña de apertura: {open_password.strip() or 'sin contraseña'} | Contraseña de propietario: {protection_data['owner_password']}",
@@ -386,6 +472,30 @@ def download_book(book_id: int):
         return redirect(url_for("history"))
 
     return send_file(BASE_DIR / book["protected_path"], as_attachment=True, download_name=book["protected_filename"])
+
+
+@app.route("/delete/<int:book_id>", methods=["POST"])
+@login_required
+@limiter.limit("30/minute")
+def delete_book(book_id: int):
+    with get_db_connection() as connection:
+        book = connection.execute(
+            "SELECT protected_path FROM protected_books WHERE id = ?",
+            (book_id,),
+        ).fetchone()
+
+        if not book:
+            flash("No se encontró el registro que intentas eliminar.", "error")
+            return redirect(url_for("history"))
+
+        connection.execute("DELETE FROM protected_books WHERE id = ?", (book_id,))
+
+    protected_file = BASE_DIR / book["protected_path"]
+    if protected_file.exists() and protected_file.is_file():
+        protected_file.unlink()
+
+    flash("Registro eliminado correctamente.", "success")
+    return redirect(url_for("history"))
 
 
 ensure_storage()

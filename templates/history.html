@@ -37,7 +37,15 @@
                         Propietario: {{ book.owner_password_hint }}
                     </td>
                     <td>{{ book.creator_name }}</td>
-                    <td><a class="button" href="{{ url_for('download_book', book_id=book.id) }}">Descargar</a></td>
+                    <td>
+                        <div class="action-stack">
+                            <a class="button" href="{{ url_for('download_book', book_id=book.id) }}">Descargar</a>
+                            <form method="post" action="{{ url_for('delete_book', book_id=book.id) }}" onsubmit="return confirm('Se eliminará el registro y el PDF protegido asociado. ¿Deseas continuar?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button class="button button-danger" type="submit">Eliminar</button>
+                            </form>
+                        </div>
+                    </td>
                 </tr>
                 {% else %}
                 <tr>

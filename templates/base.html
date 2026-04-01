@@ -230,6 +230,102 @@
             background: var(--crimson-dark);
         }
 
+        .button:disabled,
+        button.button:disabled {
+            opacity: 0.7;
+            cursor: wait;
+        }
+
+        .button-danger,
+        button.button-danger {
+            background: #303132;
+        }
+
+        .button-danger:hover,
+        button.button-danger:hover {
+            background: #1f2021;
+        }
+
+        .action-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-start;
+        }
+
+        .action-stack form {
+            display: block;
+            margin: 0;
+        }
+
+        .processing-overlay {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(48, 49, 50, 0.48);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            z-index: 999;
+        }
+
+        .processing-overlay.is-visible {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        .processing-card {
+            width: min(420px, 100%);
+            padding: 28px;
+            border-radius: 14px;
+            background: var(--white);
+            border-top: 5px solid var(--crimson);
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+
+        .processing-spinner {
+            width: 54px;
+            height: 54px;
+            margin: 0 auto 18px;
+            border-radius: 50%;
+            border: 5px solid rgba(169, 0, 70, 0.16);
+            border-top-color: var(--crimson);
+            animation: spin 0.8s linear infinite;
+        }
+
+        .processing-card h3 {
+            margin: 0 0 10px;
+            font-size: 1.12rem;
+        }
+
+        .processing-card p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .button-label-loading {
+            display: none;
+        }
+
+        .button.is-loading .button-label-default {
+            display: none;
+        }
+
+        .button.is-loading .button-label-loading {
+            display: inline;
+        }
+
+        body.is-busy {
+            overflow: hidden;
+        }
+
         /* ── Table ── */
         .table-wrap { overflow-x: auto; }
 
@@ -302,6 +398,12 @@
                 height: 48px;
             }
         }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
 <body>
@@ -339,5 +441,7 @@
 
         {% block content %}{% endblock %}
     </div>
+
+    {% block extra_scripts %}{% endblock %}
 </body>
 </html>

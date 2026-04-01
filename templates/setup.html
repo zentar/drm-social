@@ -6,6 +6,7 @@
         <h2>Crear usuario inicial</h2>
         <p>La aplicación aún no tiene cuentas. Crea el primer acceso administrativo para comenzar a proteger libros.</p>
         <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <label>
                 Nombre completo
                 <input type="text" name="name" placeholder="Andrea Sánchez" required>
