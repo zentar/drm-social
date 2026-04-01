@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="card">
+    <h2>Historial de libros protegidos</h2>
+    <p>Cada registro conserva quién protegió el libro, para qué usuario se emitió la licencia y cómo se configuró la protección.</p>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Libro</th>
+                    <th>Destinatario</th>
+                    <th>Licencia</th>
+                    <th>Contraseñas</th>
+                    <th>Creado por</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for book in books %}
+                <tr>
+                    <td>
+                        <strong>{{ book.original_filename }}</strong><br>
+                        <span class="pill">{{ book.protected_filename }}</span>
+                    </td>
+                    <td>
+                        {{ book.recipient_name }}<br>
+                        {{ book.recipient_email }}<br>
+                        <span class="pill">Hash {{ book.recipient_hash }}</span>
+                    </td>
+                    <td>
+                        ID {{ book.license_id }}<br>
+                        {{ book.created_at }}
+                    </td>
+                    <td>
+                        Apertura: {{ book.open_password_hint }}<br>
+                        Propietario: {{ book.owner_password_hint }}
+                    </td>
+                    <td>{{ book.creator_name }}</td>
+                    <td><a class="button" href="{{ url_for('download_book', book_id=book.id) }}">Descargar</a></td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6">No hay registros todavía.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

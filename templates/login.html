@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="grid" style="max-width: 520px; margin: 0 auto;">
+    <div class="card">
+        <h2>Iniciar sesión</h2>
+        <p>Accede al repositorio privado de libros protegidos y genera nuevas licencias desde un solo panel.</p>
+        <form method="post">
+            <label>
+                Correo electrónico
+                <input type="email" name="email" placeholder="admin@ejemplo.com" required>
+            </label>
+            <label>
+                Contraseña
+                <input type="password" name="password" placeholder="Tu contraseña" required>
+            </label>
+            <button class="button" type="submit">Entrar</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

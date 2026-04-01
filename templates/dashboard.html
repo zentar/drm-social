@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="grid two">
+    <div class="card">
+        <h2>Nueva protección</h2>
+        <p>Sube el PDF, asigna el comprador y define si el archivo tendrá contraseña de apertura o una clave de propietario específica.</p>
+        <form method="post" action="{{ url_for('protect_book') }}" enctype="multipart/form-data">
+            <label>
+                Libro en PDF
+                <input type="file" name="book" accept="application/pdf" required>
+            </label>
+            <label>
+                Nombre del usuario
+                <input type="text" name="recipient_name" placeholder="Nombre del comprador" required>
+            </label>
+            <label>
+                Email del usuario
+                <input type="email" name="recipient_email" placeholder="correo@cliente.com" required>
+            </label>
+            <label>
+                Contraseña de apertura del PDF
+                <input type="text" name="open_password" placeholder="Déjala vacía si el PDF abrirá sin pedir contraseña">
+            </label>
+            <label>
+                Contraseña de propietario
+                <input type="text" name="owner_password" placeholder="Si queda vacía, la app generará una automáticamente">
+            </label>
+            <button class="button" type="submit">Proteger libro</button>
+        </form>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h2>Cómo funciona</h2>
+            <div class="hero-metric">
+                <div>
+                    <strong>1</strong>
+                    Carga el PDF original.
+                </div>
+                <div>
+                    <strong>2</strong>
+                    Asigna nombre y email al comprador.
+                </div>
+                <div>
+                    <strong>3</strong>
+                    Descarga el PDF protegido y queda en el historial.
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Últimos protegidos</h3>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Libro</th>
+                            <th>Destinatario</th>
+                            <th>Fecha</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for book in recent_books %}
+                        <tr>
+                            <td>
+                                <strong>{{ book.original_filename }}</strong><br>
+                                <span class="pill">{{ book.license_id }}</span>
+                            </td>
+                            <td>{{ book.recipient_name }}<br>{{ book.recipient_email }}</td>
+                            <td>{{ book.created_at }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3">Todavía no hay documentos protegidos.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

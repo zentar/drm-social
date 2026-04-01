@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="grid" style="max-width: 620px; margin: 0 auto;">
+    <div class="card">
+        <h2>Crear usuario inicial</h2>
+        <p>La aplicación aún no tiene cuentas. Crea el primer acceso administrativo para comenzar a proteger libros.</p>
+        <form method="post">
+            <label>
+                Nombre completo
+                <input type="text" name="name" placeholder="Andrea Sánchez" required>
+            </label>
+            <label>
+                Correo electrónico
+                <input type="email" name="email" placeholder="admin@ejemplo.com" required>
+            </label>
+            <label>
+                Contraseña
+                <input type="password" name="password" required>
+            </label>
+            <label>
+                Confirmar contraseña
+                <input type="password" name="confirm_password" required>
+            </label>
+            <button class="button" type="submit">Crear acceso</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

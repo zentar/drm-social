@@ -1,0 +1,15 @@
+services:
+  drm-social:
+    build: .
+    container_name: drm-social
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      ADMIN_NAME: ${ADMIN_NAME}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      PORT: 8000
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
