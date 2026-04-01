@@ -62,7 +62,7 @@ docker-compose up --build
 Abrir en el navegador:
 
 ```text
-http://127.0.0.1:8000
+http://127.0.0.1:8100
 ```
 
 ## Persistencia

@@ -3,7 +3,7 @@ services:
     build: .
     container_name: drm-social
     ports:
-      - "${APP_PORT:-8000}:8000"
+      - "${APP_PORT:-8100}:8000"
     environment:
       SECRET_KEY: ${SECRET_KEY}
       ADMIN_NAME: ${ADMIN_NAME}
